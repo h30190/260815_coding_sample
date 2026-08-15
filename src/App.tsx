@@ -12,6 +12,7 @@ import { UserProfile } from './types';
 import ClockPanel from './components/ClockPanel';
 import AttendanceList from './components/AttendanceList';
 import WorkHoursCalculator from './components/WorkHoursCalculator';
+import KanbanBoard from './components/KanbanBoard';
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -22,7 +23,7 @@ export default function App() {
   const [name, setName] = useState('');
   const [roleInput, setRoleInput] = useState<'architect' | 'admin' | 'staff'>('architect');
   const [officeInput, setOfficeInput] = useState('Taipei Headquarters');
-  const [activeTab, setActiveTab] = useState<'clock' | 'hours'>('clock');
+  const [activeTab, setActiveTab] = useState<'clock' | 'hours' | 'kanban'>('clock');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -200,7 +201,7 @@ export default function App() {
               key="dashboard"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="max-w-4xl mx-auto space-y-8"
+              className={`mx-auto space-y-8 transition-all duration-300 ${activeTab === 'kanban' ? 'max-w-7xl' : 'max-w-4xl'}`}
             >
               {/* Tab Selector */}
               <div className="flex justify-center space-x-8 border-b border-neutral-200 pb-px">
@@ -226,6 +227,17 @@ export default function App() {
                     <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab('kanban')}
+                  className={`pb-4 text-xs font-bold uppercase tracking-[0.2em] transition-all relative ${
+                    activeTab === 'kanban' ? 'text-neutral-900' : 'text-neutral-400 hover:text-neutral-900'
+                  }`}
+                >
+                  專案管理
+                  {activeTab === 'kanban' && (
+                    <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
+                  )}
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -239,9 +251,13 @@ export default function App() {
                       <AttendanceList userId={user.uid} />
                     </div>
                   </div>
-                ) : (
+                ) : activeTab === 'hours' ? (
                   <div>
                     <WorkHoursCalculator userId={user.uid} />
+                  </div>
+                ) : (
+                  <div>
+                    <KanbanBoard />
                   </div>
                 )}
               </div>
