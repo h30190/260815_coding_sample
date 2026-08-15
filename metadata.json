@@ -1,0 +1,6 @@
+{
+  "name": "ArchClock - Attendance System",
+  "description": "Professional attendance and field reporting system for architectural firms with geolocation tracking.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
