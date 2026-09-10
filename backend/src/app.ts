@@ -16,6 +16,12 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'data', 'uploads')));
 
+// ponytail: --seed 啟動時灌假資料，正式用不加此 flag 就是乾淨的
+if (process.argv.includes('--seed')) {
+  console.log('正在灌教學假資料...');
+  console.log(runSeed());
+}
+
 // ---- 租戶中介層：資源路由必填 X-Tenant-Id；只有建租戶/登入系免頭 ----
 app.use('/api/v1', (req, res, next) => {
   const open = (req.path === '/tenants' && (req.method === 'GET' || req.method === 'POST'))

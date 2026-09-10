@@ -2,7 +2,7 @@
 title HJPLUS.DESIGN 正式模式
 cd /d "%~dp0..\backend"
 
-echo [1/3] 啟動後端...
+echo [1/3] 啟動後端（乾淨資料庫）...
 start "後端 :3001" cmd /c "npm run start"
 
 :waitbe
@@ -24,5 +24,5 @@ echo       前端已就緒
 echo [3/3] 開啟瀏覽器...
 start http://localhost:3000
 echo.
-echo 系統已啟動。預設帳號 admin / admin，首次登入請改密碼。
+echo 正式環境已啟動。預設帳號 admin / admin，首次登入請改密碼。
 pause
