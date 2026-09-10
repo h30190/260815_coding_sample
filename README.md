@@ -9,7 +9,9 @@ React 19 + TypeScript + Vite 6 ｜ Tailwind CSS + motion/react + Lucide ｜ 資�
 ## 快速開始
 
 ```bat
-scripts\start-dev.bat      # 開發展示用（:3000，會自動開瀏覽器）
+scripts\start-all.bat      # 一鍵啟動（後端 :3001 + 前端 :3000 + 開瀏覽器）
+scripts\start-dev.bat      # 只開前端展示用（:3000）
+scripts\start-backend.bat  # 只開後端（:3001，首次自動灌假資料）
 scripts\start-preview.bat  # 驗收用（先 build 再 preview :4173）
 ```
 

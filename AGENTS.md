@@ -47,5 +47,5 @@
 ## 4. 教學範本與文件維護
 
 - **假資料**：教學用資料統一由 `src/lib/seed.ts` 灌入（`seedDemoData` / `resetDemoData`），新增欄位時同步更新 `docs/spec/06_data-multitenant.md` 筆數對照表。
-- **啟動腳本**：`scripts/start-dev.bat`（展示）、`scripts/start-preview.bat`（驗收），根目錄舊 `start-app.bat` 保留相容。
+- **啟動腳本**：`scripts/start-all.bat`（一鍵前後端），另有 `start-dev` / `start-backend` / `start-preview` 單開版，根目錄舊 `start-app.bat` 已刪除。
 - **文件分工**：`README.md` 只放總覽與索引，細節進 `docs/spec/`；路線圖只放 `docs/plan/README.md`，不另開散檔。
