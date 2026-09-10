@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Calendar, User, AlertCircle, ArrowRight } from 'lucide-react';
 import { inTenant } from '../lib/store';
+import { backendUp, apiList, apiSend } from '../lib/api';
 
 interface KanbanTask {
   id: string;
@@ -39,6 +40,7 @@ const COLUMNS: ColumnConfig[] = [
 export default function KanbanBoard({ tenantId }: { tenantId: string }) {
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [useApi, setUseApi] = useState(false);
   
   // Form states
   const [title, setTitle] = useState('');
@@ -47,24 +49,56 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [dueDate, setDueDate] = useState('');
 
-  // Load tasks on mount
+  // Load tasks: 後端有開吃 API，沒開退回 localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('archclock_kanban_tasks');
-    if (saved) {
-      setTasks(JSON.parse(saved));
-    }
-  }, []);
+    let on = true;
+    (async () => {
+      try {
+        if (await backendUp()) {
+          const items = await apiList<KanbanTask>('kanban', tenantId);
+          if (on) { setUseApi(true); setTasks(items); return; }
+        }
+      } catch { /* 掉回本地 */ }
+      if (on) {
+        setUseApi(false);
+        const saved = localStorage.getItem('archclock_kanban_tasks');
+        if (saved) setTasks(JSON.parse(saved));
+      }
+    })();
+    return () => { on = false; };
+  }, [tenantId]);
 
-  // Save tasks helper
+  const refresh = async () => {
+    try {
+      setTasks(await apiList<KanbanTask>('kanban', tenantId));
+    } catch { setUseApi(false); }
+  };
+
+  const tidOf = (id: string) => tasks.find((t) => t.id === id)?.tenantId || tenantId;
+
+  // Save tasks helper（本地模式）
   const saveTasks = (newTasks: KanbanTask[]) => {
     setTasks(newTasks);
     localStorage.setItem('archclock_kanban_tasks', JSON.stringify(newTasks));
   };
 
   // Add task handler
-  const handleAddTask = (e: React.FormEvent) => {
+  const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
+    if (useApi) {
+      try {
+        await apiSend('kanban', 'POST', apiTenantOf(), {
+          title: title.trim(), description: description.trim(), assignee: assignee.trim() || '未分配',
+          priority, dueDate: dueDate || formatToday(), column: 'backlog',
+        });
+        setTitle(''); setDescription(''); setAssignee(''); setPriority('medium'); setDueDate('');
+        setIsModalOpen(false);
+        await refresh();
+        return;
+      } catch { setUseApi(false); }
+    }
 
     const newTask: KanbanTask = {
       id: Math.random().toString(36).substring(2, 9),
@@ -89,8 +123,21 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
     setIsModalOpen(false);
   };
 
-  const handleDeleteTask = (id: string, e: React.MouseEvent) => {
+  // ponytail: 後端 tenant 不接受 'all'，未知時預設 t-taipei（只影響無 tenantId 的舊卡）
+  const apiTenantOf = (id?: string) => {
+    const t = id ? tidOf(id) : tenantId;
+    return t === 'all' ? 't-taipei' : t;
+  };
+
+  const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (useApi) {
+      try {
+        await apiSend(`kanban/${id}`, 'DELETE', apiTenantOf(id));
+        await refresh();
+        return;
+      } catch { setUseApi(false); }
+    }
     const filtered = tasks.filter(t => t.id !== id);
     saveTasks(filtered);
   };
@@ -106,35 +153,37 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
     e.dataTransfer.setData('text/plain', id);
   };
 
+  const moveColumn = async (id: string, targetColumn: ColumnType) => {
+    if (useApi) {
+      try {
+        await apiSend(`kanban/${id}`, 'PATCH', apiTenantOf(id), { column: targetColumn });
+        await refresh();
+        return;
+      } catch { setUseApi(false); }
+    }
+    const updated = tasks.map(t => (t.id === id ? { ...t, column: targetColumn } : t));
+    saveTasks(updated);
+  };
+
   const handleDrop = (e: React.DragEvent, targetColumn: ColumnType) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
-    const updated = tasks.map(t => {
-      if (t.id === id) {
-        return { ...t, column: targetColumn };
-      }
-      return t;
-    });
-    saveTasks(updated);
+    moveColumn(id, targetColumn);
   };
 
   // Button-based move fallback (accessible & mobile-friendly)
   const moveTask = (id: string, direction: 'forward' | 'backward') => {
     const colOrder: ColumnType[] = ['backlog', 'in_progress', 'review', 'done'];
-    const updated = tasks.map(t => {
-      if (t.id === id) {
-        const currentIndex = colOrder.indexOf(t.column);
-        let newIndex = currentIndex;
-        if (direction === 'forward' && currentIndex < colOrder.length - 1) {
-          newIndex += 1;
-        } else if (direction === 'backward' && currentIndex > 0) {
-          newIndex -= 1;
-        }
-        return { ...t, column: colOrder[newIndex] };
-      }
-      return t;
-    });
-    saveTasks(updated);
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const currentIndex = colOrder.indexOf(task.column);
+    let newIndex = currentIndex;
+    if (direction === 'forward' && currentIndex < colOrder.length - 1) {
+      newIndex += 1;
+    } else if (direction === 'backward' && currentIndex > 0) {
+      newIndex -= 1;
+    }
+    if (newIndex !== currentIndex) moveColumn(id, colOrder[newIndex]);
   };
 
   const getPriorityBadge = (p: 'high' | 'medium' | 'low') => {

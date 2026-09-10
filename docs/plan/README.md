@@ -4,9 +4,9 @@
 
 ## Phase 1：專管後端（前後端分離）
 
-- [ ] `backend/` Express + SQLite（better-sqlite3），schema 見 `docs/spec/06_data-multitenant.md`
-- [ ] tenant middleware（`X-Tenant-Id` 強制過濾）+ `/api/v1` 端點（規格見 `05_api.md`）
-- [ ] Vite proxy `/api → :3001`，`src/lib/api.ts` 前端客戶端
+- [x] `backend/` Express + SQLite（better-sqlite3），schema 見 `docs/spec/06_data-multitenant.md`
+- [x] tenant middleware（`X-Tenant-Id` 強制過濾）+ `/api/v1` 端點（規格見 `05_api.md`）
+- [x] Vite proxy `/api、/uploads → :3001`，`src/lib/api.ts` 前端客戶端（後端沒開自動退回 localStorage）
 
 ## Phase 2：RFI 與附件 UI
 

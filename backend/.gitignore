@@ -1,0 +1,3 @@
+# backend 執行期產物（SQLite + 上傳檔）不進版控，教學每人一份
+data/
+node_modules/

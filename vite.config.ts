@@ -20,6 +20,11 @@ export default defineConfig(() => {
       // ponytail: 埠號寫死 + strictPort，避免跟 Wails 或其他 Vite 專案打架（被佔用直接報錯不自動跳埠）
       port: 3000,
       strictPort: true,
+      // ponytail: dev 經 /api、/uploads 打後端 :3001，正式部署改由後端 serve dist/
+      proxy: {
+        '/api': 'http://localhost:3001',
+        '/uploads': 'http://localhost:3001',
+      },
     },
     preview: {
       port: 4173,

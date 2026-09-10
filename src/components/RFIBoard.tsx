@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Paperclip, MessageSquare, Calendar, User, Plus, X } from 'lucide-react';
 import { saveList, listUsers, getProjects, getCurrentUserName, inTenant } from '../lib/store';
+import { backendUp, apiList, apiSend, apiUpload } from '../lib/api';
 
 interface RFIReply {
   by: string;
@@ -22,6 +23,7 @@ interface RFIAttachment {
   mime: string;
   size: number;
   dataUrl?: string;
+  url?: string;
   uploadedBy: string;
   createdAt: string;
 }
@@ -62,6 +64,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [useApi, setUseApi] = useState(false);
   // 新增表單
   const [fTitle, setFTitle] = useState('');
   const [fDesc, setFDesc] = useState('');
@@ -73,34 +76,79 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const users = listUsers(tenantId);
   const projects = getProjects().filter((p) => inTenant(p, tenantId));
 
+  // ponytail: 後端有開就吃 API（多人共用同一份），沒開退回 localStorage（單機 demo）
   useEffect(() => {
-    const saved = localStorage.getItem('archclock_rfi');
-    if (saved) setRfis(JSON.parse(saved));
-  }, []);
+    let on = true;
+    (async () => {
+      try {
+        if (await backendUp()) {
+          const items = await apiList<RFI>('rfis', tenantId);
+          if (on) { setUseApi(true); setRfis(items); return; }
+        }
+      } catch { /* 掉回本地 */ }
+      if (on) {
+        setUseApi(false);
+        const saved = localStorage.getItem('archclock_rfi');
+        if (saved) setRfis(JSON.parse(saved));
+      }
+    })();
+    return () => { on = false; };
+  }, [tenantId]);
 
-  // ponytail: 直接整包寫回 localStorage，沒有後端前這就是唯一的真相來源
+  const refresh = async () => {
+    try {
+      setRfis(await apiList<RFI>('rfis', tenantId));
+    } catch { setUseApi(false); }
+  };
+
+  // ponytail: 本地模式才整包寫回 localStorage；API 模式以後端為真相來源
   const save = (next: RFI[]) => {
     setRfis(next);
     saveList('archclock_rfi', next);
   };
 
-  const addReply = (id: string) => {
+  const tidOf = (id: string) => rfis.find((r) => r.id === id)?.tenantId || tenantId;
+
+  const addReply = async (id: string) => {
     const text = replyText.trim();
     if (!text) return;
+    setReplyText('');
+    if (useApi) {
+      try {
+        await apiSend(`rfis/${id}/replies`, 'POST', tidOf(id), { by: getCurrentUserName(), text });
+        await refresh();
+        return;
+      } catch { setUseApi(false); }
+    }
     save(rfis.map((r) => (r.id === id
       ? { ...r, replies: [...r.replies, { by: getCurrentUserName(), text, at: new Date().toISOString() }], version: r.version + 1 }
       : r)));
-    setReplyText('');
   };
 
-  const setStatus = (id: string, status: RFI['status']) => {
+  const setStatus = async (id: string, status: RFI['status']) => {
+    if (useApi) {
+      try {
+        await apiSend(`rfis/${id}`, 'PATCH', tidOf(id), { status });
+        await refresh();
+        return;
+      } catch { setUseApi(false); }
+    }
     save(rfis.map((r) => (r.id === id ? { ...r, status, version: r.version + 1 } : r)));
   };
 
-  // 附件：Ctrl+V 貼圖或點選上傳（圖片 ≤5MB、單 RFI ≤10 件，教學版存 dataUrl）
+  // 附件：Ctrl+V 貼圖或點選上傳（圖片 ≤5MB、單 RFI ≤10 件；API 模式存後端 uploads/，本地模式存 dataUrl）
   const addFiles = (id: string, files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith('image/') && f.size <= 5 * 1024 * 1024).slice(0, 10);
     if (arr.length === 0) return;
+    if (useApi) {
+      (async () => {
+        try {
+          for (const f of arr) await apiUpload(id, tidOf(id), f);
+          await refresh();
+        } catch { setUseApi(false); }
+      })();
+      return;
+    }
     Promise.all(arr.map((f) => new Promise<RFIAttachment>((resolve) => {
       const rd = new FileReader();
       rd.onload = () => resolve({ id: Math.random().toString(36).substring(2, 9), fileName: f.name, mime: f.type, size: f.size, dataUrl: rd.result as string, uploadedBy: getCurrentUserName(), createdAt: new Date().toISOString() });
@@ -110,15 +158,31 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     });
   };
 
-  // 新增 RFI：編號自動接續 RFI-2026-XXX
-  const createRFI = (e: React.FormEvent) => {
+  // 新增 RFI：API 模式編號由後端接續，本地模式自行接續 RFI-2026-XXX
+  const createRFI = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fTitle.trim()) return;
+    const tid = tenantId === 'all' ? (projects[0]?.tenantId || 't-taipei') : tenantId;
+    const body = {
+      projectId: fProject || projects[0]?.id || '', title: fTitle.trim(), description: fDesc.trim(),
+      askedBy: getCurrentUserName(), assignedTo: fAssignee || users[0]?.displayName || '未分配',
+      dueDate: fDue || undefined, linkedDrawings: fDrawings.split(/[,，\s]+/).filter(Boolean), priority: 'medium',
+    };
+    if (useApi) {
+      try {
+        const { id } = await apiSend<{ id: string }>('rfis', 'POST', tid, body);
+        setFTitle(''); setFDesc(''); setFProject(''); setFAssignee(''); setFDue(''); setFDrawings('');
+        setIsModalOpen(false);
+        await refresh();
+        setExpanded(id);
+        return;
+      } catch { setUseApi(false); }
+    }
     const nums = rfis.map((r) => parseInt(r.id.split('-').pop() || '0', 10)).filter((n) => !isNaN(n));
     const next = `RFI-2026-${String(Math.max(0, ...nums) + 1).padStart(3, '0')}`;
     const now = new Date().toISOString();
     const rfi: RFI = {
-      id: next, tenantId: tenantId === 'all' ? (projects[0]?.tenantId || 't-taipei') : tenantId,
+      id: next, tenantId: tid,
       projectId: fProject || projects[0]?.id || '', title: fTitle.trim(), description: fDesc.trim(),
       askedBy: getCurrentUserName(), assignedTo: fAssignee || users[0]?.displayName || '未分配', cc: [],
       status: 'open', priority: 'medium', dueDate: fDue || now.split('T')[0],
@@ -237,7 +301,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
                       <div className="flex items-center space-x-3 flex-wrap gap-y-2">
                         {r.attachments.map((a) => (
                           <div key={a.id} className="flex items-center space-x-2 border border-neutral-200 bg-white rounded-sm p-2">
-                            {a.dataUrl && <img src={a.dataUrl} alt={a.fileName} className="h-8 w-8 object-cover rounded-sm border border-neutral-100" />}
+                            {(a.dataUrl || a.url) && <img src={a.dataUrl || a.url} alt={a.fileName} className="h-8 w-8 object-cover rounded-sm border border-neutral-100" />}
                             <div className="text-[10px] text-neutral-500">
                               <p className="font-medium text-neutral-700 max-w-[120px] truncate">{a.fileName}</p>
                               <p>{a.uploadedBy}</p>
