@@ -96,14 +96,32 @@ app.post('/api/v1/login', (req, res) => {
   res.json({ uid: u.uid, displayName: u.displayName, role: u.role, tenantId: u.tenantId, tenantName: t?.name || '', mustChange: (u.must_change || 0) === 1 });
 });
 app.post('/api/v1/change-password', (req, res) => {
-  const { account, oldPassword, newPassword } = req.body;
+  const { account, oldPassword, newPassword, newUid } = req.body;
   if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: '新密碼至少 4 碼' });
   const u = db.prepare('SELECT password_hash FROM users WHERE uid = ?').get(account) as any;
   if (!u || !verifyPassword(oldPassword || '', u.password_hash)) {
     return res.status(401).json({ error: '舊密碼錯誤' });
   }
-  db.prepare('UPDATE users SET password_hash = ?, must_change = 0 WHERE uid = ?').run(hashPassword(newPassword), account);
-  res.json({ ok: true });
+  const t = db.transaction(() => {
+    db.prepare('UPDATE users SET password_hash = ?, must_change = 0 WHERE uid = ?').run(hashPassword(newPassword), account);
+    // ponytail: 改帳號時同步更新所有關聯表
+    if (newUid && newUid.trim() && newUid.trim() !== account) {
+      const n = (db.prepare('SELECT COUNT(*) AS c FROM users WHERE uid = ?').get(newUid.trim()) as any).c;
+      if (n > 0) return res.status(409).json({ error: '帳號已存在' });
+      db.prepare('UPDATE users SET uid = ? WHERE uid = ?').run(newUid.trim(), account);
+      db.prepare('UPDATE kanban_tasks SET assignee = ? WHERE assignee = ?').run(newUid.trim(), account);
+      db.prepare('UPDATE rfis SET askedBy = ? WHERE askedBy = ?').run(newUid.trim(), account);
+      db.prepare('UPDATE rfis SET assignedTo = ? WHERE assignedTo = ?').run(newUid.trim(), account);
+      db.prepare('UPDATE rfi_replies SET byUser = ? WHERE byUser = ?').run(newUid.trim(), account);
+      db.prepare('UPDATE attachments SET uploadedBy = ? WHERE uploadedBy = ?').run(newUid.trim(), account);
+    }
+  });
+  try {
+    t();
+    res.json({ ok: true, uid: newUid?.trim() || account });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ---- 看板 ----

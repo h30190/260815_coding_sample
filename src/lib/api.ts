@@ -69,9 +69,10 @@ export async function apiLogin(account: string, password: string): Promise<Sessi
   if (!r.ok) throw new Error((await r.json()).error || '登入失敗');
   return r.json();
 }
-export async function apiChangePassword(account: string, oldPassword: string, newPassword: string): Promise<void> {
-  const r = await fetch(`${BASE}/change-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, oldPassword, newPassword }) });
+export async function apiChangePassword(account: string, oldPassword: string, newPassword: string, newUid?: string): Promise<{ uid?: string }> {
+  const r = await fetch(`${BASE}/change-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, oldPassword, newPassword, newUid }) });
   if (!r.ok) throw new Error((await r.json()).error || '改密碼失敗');
+  return r.json();
 }
 export const getSession = (): Session | null => {
   try {

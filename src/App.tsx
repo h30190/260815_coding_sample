@@ -38,6 +38,7 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [forcePw, setForcePw] = useState<Session | null>(null);
   const [newPw, setNewPw] = useState('');
+  const [newAccount, setNewAccount] = useState('');
   const [pwError, setPwError] = useState('');
 
   useEffect(() => {
@@ -144,15 +145,15 @@ export default function App() {
   const handleForcePw = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError('');
-    if (!forcePw || newPw.length < 4) {
-      setPwError('新密碼至少 4 碼');
-      return;
-    }
+    if (!forcePw) return;
+    if (!newAccount.trim()) { setPwError('請輸入新帳號'); return; }
+    if (newPw.length < 4) { setPwError('新密碼至少 4 碼'); return; }
     try {
-      await apiChangePassword(forcePw.uid, (document.getElementById('oldPw') as HTMLInputElement)?.value || '', newPw);
-      const s = { ...forcePw, mustChange: false };
+      const r = await apiChangePassword(forcePw.uid, (document.getElementById('oldPw') as HTMLInputElement)?.value || '', newPw, newAccount.trim());
+      const s = { ...forcePw, uid: r.uid || newAccount.trim(), mustChange: false };
       setForcePw(null);
       setNewPw('');
+      setNewAccount('');
       applySession(s);
     } catch (err: any) {
       setPwError(err.message);
@@ -173,15 +174,17 @@ export default function App() {
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
         <form onSubmit={handleForcePw} className="w-full max-w-sm bg-white p-8 border border-neutral-200 shadow-sm rounded-sm space-y-6">
           <div className="text-center space-y-2">
-            <h2 className="text-lg font-medium uppercase tracking-wider">請先變更密碼</h2>
-            <p className="text-xs text-neutral-500">帳號 {forcePw.uid} 使用初始密碼登入，需先設定自己的密碼</p>
+            <h2 className="text-lg font-medium uppercase tracking-wider">首次登入設定</h2>
+            <p className="text-xs text-neutral-500">帳號 {forcePw.uid} 使用初始密碼，請先設定自己的帳號與密碼</p>
           </div>
-          <input id="oldPw" type="password" required placeholder="舊密碼（初始密碼）"
+          <input id="oldPw" type="password" required placeholder="舊密碼（admin）"
+            className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 rounded-sm" />
+          <input type="text" required placeholder="新帳號（例如 yourname）" value={newAccount} onChange={(e) => setNewAccount(e.target.value)}
             className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 rounded-sm" />
           <input type="password" required placeholder="新密碼（至少 4 碼）" value={newPw} onChange={(e) => setNewPw(e.target.value)}
             className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 rounded-sm" />
           {pwError && <p className="text-xs text-red-600 text-center">{pwError}</p>}
-          <button className="w-full py-4 bg-neutral-900 text-white text-sm font-medium uppercase tracking-[0.2em] rounded-sm">確認變更並進入</button>
+          <button className="w-full py-4 bg-neutral-900 text-white text-sm font-medium uppercase tracking-[0.2em] rounded-sm">確認並進入系統</button>
         </form>
       </div>
     );
