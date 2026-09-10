@@ -9,6 +9,7 @@ import { LogIn, Compass, Shield, User, LogOut, Loader2 } from 'lucide-react';
 import { auth, db, googleProvider, signInWithPopup, signOut, doc, getDoc, setDoc } from './lib/firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { UserProfile } from './types';
+import { seedDemoData, resetDemoData } from './lib/seed';
 import ClockPanel from './components/ClockPanel';
 import AttendanceList from './components/AttendanceList';
 import WorkHoursCalculator from './components/WorkHoursCalculator';
@@ -67,6 +68,16 @@ export default function App() {
     }
   };
 
+  const handleSeedDemo = () => {
+    seedDemoData();
+    window.location.reload();
+  };
+
+  const handleResetDemo = () => {
+    resetDemoData();
+    window.location.reload();
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -105,6 +116,13 @@ export default function App() {
                 <User className="h-4 w-4" />
               </div>
             </div>
+            <button 
+              onClick={handleResetDemo}
+              className="p-2 text-neutral-300 hover:text-neutral-900 transition-colors text-[10px] font-bold uppercase tracking-widest"
+              title="重置教學假資料"
+            >
+              Demo
+            </button>
             <button 
               onClick={handleLogout}
               className="p-2 text-neutral-400 hover:text-neutral-900 transition-colors"
@@ -183,6 +201,12 @@ export default function App() {
                     <span>進入系統</span>
                   </button>
                 </form>
+                <button
+                  onClick={handleSeedDemo}
+                  className="w-full py-3 border border-dashed border-neutral-300 text-neutral-500 text-xs font-bold uppercase tracking-wider hover:border-neutral-900 hover:text-neutral-900 transition-colors rounded-sm"
+                >
+                  一鍵載入教學假資料
+                </button>
               </div>
                 
                 <div className="flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest text-neutral-400">

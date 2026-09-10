@@ -1,20 +1,38 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# ArchClock 教學範本
 
-# Run and deploy your AI Studio app
+建築師事務所用的打卡 + 工時 + 看板專案管理系統，兼作開發教學範本：**完全本地化**（`localStorage`，無雲端連線），內建一鍵教學假資料。
 
-This contains everything you need to run your app locally.
+## 技術棧
 
-View your app in AI Studio: https://ai.studio/apps/822a92ae-9a32-405a-a44d-1cd02581bb11
+React 19 + TypeScript + Vite 6 ｜ Tailwind CSS + motion/react + Lucide ｜ 資料層 `src/lib/firebase.ts`（localStorage 模擬 Firestore API，日後可無痛切回真實資料庫）
 
-## Run Locally
+## 快速開始
 
-**Prerequisites:**  Node.js
+```bat
+scripts\start-dev.bat      # 開發展示用（:3000，會自動開瀏覽器）
+scripts\start-preview.bat  # 驗收用（先 build 再 preview :4173）
+```
 
+或手動：`npm install` → `npm run dev`（`npm run build` 打包、`npm run lint` 型別檢查）。
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 教學假資料
+
+登入頁按「**一鍵載入教學假資料**」（`src/lib/seed.ts`）：2 租戶、6 使用者、3 專案、12 張看板卡（4 欄各 3）、8 筆完整版 RFI（含逾期示範 `RFI-2026-005`）、9 筆打卡（含外點巡檢）。頂欄 `Demo` 鈕可一鍵重置。
+
+## 文件索引
+
+| 文件 | 內容 |
+| :--- | :--- |
+| `AGENTS.md` | 專案架構、規範、AI 助理運作準則 |
+| `DESIGN.md` | 設計原則、配色、組件、儲存結構 |
+| `docs/spec/01_functional.md` | 打卡、工時、看板功能規格 |
+| `docs/spec/02_security.md` | 本地安全規則、Firebase 對照 |
+| `docs/spec/03_data.md` | TypeScript 型別、localStorage schema |
+| `docs/spec/04_supervision.md` | 專管系統：多租戶、RFI、附件貼圖、指派 |
+| `docs/spec/05_api.md` | 前後端分離 REST API（Express + SQLite 規劃） |
+| `docs/spec/06_data-multitenant.md` | 多租戶資料：localStorage 對照 SQLite schema |
+| `docs/plan/README.md` | 後續開發路線圖 |
+
+## 授權
+
+Apache-2.0（修改程式碼時請保留既有 `@license` 宣告）。

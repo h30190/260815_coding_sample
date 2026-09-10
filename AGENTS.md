@@ -42,4 +42,10 @@
 - **語言限制**：一律使用**繁體中文**與使用者進行對話與說明。
 - **執行安全 (CRITICAL)**：在執行任何寫入/修改代碼、安裝套件、啟動伺服器或 Git 操作前，**必須先向使用者說明並取得確認 (OK)，嚴禁未經授權自行執行指令**。
 - **分支規範**：新功能開發需開立專屬分支（如 `feature/*`），測試無誤後再合併回 `main` 並清理分支。
-- **專案完整性**：修改代碼時應保留既有的授權宣告 (`@license SPDX-License-Identifier: Apache-2.0`)。
+---
+
+## 4. 教學範本與文件維護
+
+- **假資料**：教學用資料統一由 `src/lib/seed.ts` 灌入（`seedDemoData` / `resetDemoData`），新增欄位時同步更新 `docs/spec/06_data-multitenant.md` 筆數對照表。
+- **啟動腳本**：`scripts/start-dev.bat`（展示）、`scripts/start-preview.bat`（驗收），根目錄舊 `start-app.bat` 保留相容。
+- **文件分工**：`README.md` 只放總覽與索引，細節進 `docs/spec/`；路線圖只放 `docs/plan/README.md`，不另開散檔。
