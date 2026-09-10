@@ -175,7 +175,7 @@ export default function App() {
           <div className="h-8 w-8 bg-neutral-900 flex items-center justify-center rounded-sm">
             <Compass className="text-white h-5 w-5" />
           </div>
-          <span className="font-bold tracking-[0.3em] uppercase text-sm">ArchClock</span>
+          <span className="font-bold tracking-[0.3em] uppercase text-sm">HJPLUS.DESIGN</span>
         </div>
         {profile && (
           <div className="flex items-center space-x-4">
@@ -286,7 +286,7 @@ export default function App() {
         </AnimatePresence>
       </main>
       <footer className="fixed bottom-6 left-6 text-[10px] uppercase tracking-[0.4em] text-neutral-300 font-bold vertical-text hidden sm:block">
-        Architecture Attendance & Engineering Log v1.0
+        Architecture Attendance & Engineering Log v1.0 — HJPLUS.DESIGN
       </footer>
     </div>
   );
