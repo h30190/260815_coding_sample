@@ -3,46 +3,45 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ponytail: admin 專用設定頁 — 公司改名 + 新增人員 + 人員一覽；只有後端模式才有作用。
+// ponytail: admin 設定頁 — 人員一覽 + 角色管理 + 新增人員。
 
 import React, { useState, useEffect } from 'react';
-import { apiGet, apiSend } from '../lib/api';
+import { apiGet, apiSend, apiUpdateUserRole } from '../lib/api';
 import { DemoUser } from '../lib/store';
 
-export default function AdminSetup({ tenantId }: { tenantId: string }) {
+export default function AdminSetup() {
   const [users, setUsers] = useState<DemoUser[]>([]);
-  const [company, setCompany] = useState('');
   const [account, setAccount] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('staff');
   const [msg, setMsg] = useState('');
+  const [editingRole, setEditingRole] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
-      const r = await apiGet<{ items: DemoUser[] }>('/users', tenantId);
+      const r = await apiGet<{ items: DemoUser[] }>('/users');
       setUsers(r.items);
     } catch { /* 後端沒開就空白 */ }
   };
-  useEffect(() => { refresh(); }, [tenantId]);
-
-  const rename = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!company.trim()) return;
-    try {
-      await apiSend(`tenants/${tenantId}`, 'PATCH', tenantId, { name: company.trim() });
-      setMsg('公司名稱已更新（切換租戶即看到）');
-      setCompany('');
-    } catch (err: any) { setMsg(err.message); }
-  };
+  useEffect(() => { refresh(); }, []);
 
   const addUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !password) return;
     try {
-      await apiSend('/users', 'POST', tenantId, { uid: account.trim() || undefined, displayName: name.trim(), password, role });
+      await apiSend('/users', 'POST', { uid: account.trim() || undefined, displayName: name.trim(), password, role });
       setMsg(`已新增 ${name.trim()}（首登需改密碼）`);
       setAccount(''); setName(''); setPassword('');
+      refresh();
+    } catch (err: any) { setMsg(err.message); }
+  };
+
+  const changeRole = async (uid: string, newRole: string) => {
+    try {
+      await apiUpdateUserRole(uid, newRole);
+      setMsg(`已將 ${uid} 改為 ${newRole}`);
+      setEditingRole(null);
       refresh();
     } catch (err: any) { setMsg(err.message); }
   };
@@ -55,14 +54,6 @@ export default function AdminSetup({ tenantId }: { tenantId: string }) {
         <h2 className="text-xl font-light tracking-tight text-neutral-900 uppercase">管理員設定</h2>
         <p className="text-xs text-neutral-500 mt-0.5">Admin Setup</p>
       </div>
-
-      <form onSubmit={rename} className="bg-white border border-neutral-200 rounded-sm p-6 space-y-4">
-        <h3 className="text-sm font-bold uppercase tracking-widest">公司名稱</h3>
-        <div className="flex space-x-2">
-          <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="例如：OO建築師事務所" className={input} />
-          <button className="px-4 py-3 bg-neutral-900 text-white text-xs font-bold uppercase tracking-wider rounded-sm shrink-0">改名</button>
-        </div>
-      </form>
 
       <form onSubmit={addUser} className="bg-white border border-neutral-200 rounded-sm p-6 space-y-4">
         <h3 className="text-sm font-bold uppercase tracking-widest">新增人員（首登需改密碼）</h3>
@@ -85,7 +76,18 @@ export default function AdminSetup({ tenantId }: { tenantId: string }) {
           {users.map((u) => (
             <div key={u.uid} className="flex items-center justify-between text-sm border-b border-neutral-100 pb-2">
               <span className="font-medium">{u.displayName} <span className="text-neutral-400 font-mono text-xs">{u.uid}</span></span>
-              <span className="text-[11px] uppercase tracking-wider text-neutral-400">{u.role}</span>
+              {editingRole === u.uid ? (
+                <div className="flex items-center space-x-1">
+                  {['staff', 'architect', 'admin'].map((r) => (
+                    <button key={r} onClick={() => changeRole(u.uid, r)}
+                      className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-sm border transition-colors ${u.role === r ? 'bg-neutral-900 text-white border-neutral-900' : 'border-neutral-200 text-neutral-500 hover:border-neutral-900'}`}
+                    >{r}</button>
+                  ))}
+                  <button onClick={() => setEditingRole(null)} className="px-2 py-0.5 text-[10px] text-neutral-400 hover:text-neutral-900">取消</button>
+                </div>
+              ) : (
+                <button onClick={() => setEditingRole(u.uid)} className="text-[11px] uppercase tracking-wider text-neutral-400 hover:text-neutral-900 cursor-pointer">{u.role} ▾</button>
+              )}
             </div>
           ))}
           {users.length === 0 && <p className="text-xs text-neutral-400">後端沒開或尚無人員</p>}

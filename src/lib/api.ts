@@ -19,40 +19,32 @@ export async function backendUp(): Promise<boolean> {
   return upCache;
 }
 
-const headers = (tenantId: string, userId?: string): HeadersInit => {
-  const h: Record<string, string> = { 'X-Tenant-Id': tenantId };
-  if (userId) h['X-User-Id'] = userId;
-  return h;
-};
-
-async function req<T>(path: string, tenantId: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${BASE}${path}`, { ...init, headers: { ...headers(tenantId), ...(init?.headers as any) } });
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(`${BASE}${path}`, init);
   if (!r.ok) throw new Error(`${r.status} ${path}`);
   return r.json();
 }
 
-export const apiGet = <T>(path: string, tenantId: string): Promise<T> => req<T>(path, tenantId);
+export const apiGet = <T>(path: string): Promise<T> => req<T>(path);
 
-/** 列表查詢：tenantId 為 'all' 時對各租戶扇出合併（教學展示用） */
-export async function apiList<T>(resource: 'rfis' | 'kanban', tenantId: string): Promise<T[]> {
-  if (tenantId !== 'all') {
-    const r = await apiGet<{ items: T[] }>(`/${resource}`, tenantId);
-    return r.items;
-  }
-  const t = await apiGet<{ items: { id: string }[] }>('/tenants', 'all');
-  const lists = await Promise.all(
-    t.items.map((x) => apiGet<{ items: T[] }>(`/${resource}`, x.id).then((r) => r.items).catch(() => [] as T[]))
-  );
-  return lists.flat();
+export async function apiList<T>(resource: 'rfis' | 'kanban'): Promise<T[]> {
+  const r = await apiGet<{ items: T[] }>(`/${resource}`);
+  return r.items;
 }
-export const apiSend = <T>(path: string, method: string, tenantId: string, body?: unknown): Promise<T> =>
-  req<T>(path, tenantId, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+export const apiSend = <T>(path: string, method: string, body?: unknown): Promise<T> =>
+  req<T>(path, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
 
-export const apiUpload = (rfiId: string, tenantId: string, file: File): Promise<{ id: string; fileName: string; url: string }> => {
+export const apiUpload = (rfiId: string, file: File): Promise<{ id: string; fileName: string; url: string }> => {
   const fd = new FormData();
   fd.append('file', file);
-  return req(`rfis/${rfiId}/attachments`, tenantId, { method: 'POST', body: fd });
+  return req(`rfis/${rfiId}/attachments`, { method: 'POST', body: fd });
 };
+
+export interface DemoData {
+  projects: any[];
+  kanban: any[];
+  rfis: any[];
+}
 
 export interface Session {
   uid: string;
@@ -61,9 +53,9 @@ export interface Session {
   tenantId: string;
   tenantName: string;
   mustChange: boolean;
+  demoData?: DemoData;
 }
 
-// ponytail: 登入/改密碼不帶租戶頭（後端白名單），session 存 localStorage
 export async function apiLogin(account: string, password: string): Promise<Session> {
   const r = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }) });
   if (!r.ok) throw new Error((await r.json()).error || '登入失敗');
@@ -73,6 +65,10 @@ export async function apiChangePassword(account: string, oldPassword: string, ne
   const r = await fetch(`${BASE}/change-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, oldPassword, newPassword, newUid }) });
   if (!r.ok) throw new Error((await r.json()).error || '改密碼失敗');
   return r.json();
+}
+export async function apiUpdateUserRole(uid: string, role: string): Promise<void> {
+  const r = await fetch(`${BASE}/users/${encodeURIComponent(uid)}/role`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) });
+  if (!r.ok) throw new Error((await r.json()).error || '改角色失敗');
 }
 export const getSession = (): Session | null => {
   try {

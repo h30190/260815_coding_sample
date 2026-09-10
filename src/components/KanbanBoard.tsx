@@ -6,12 +6,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Calendar, User, AlertCircle, ArrowRight } from 'lucide-react';
-import { inTenant } from '../lib/store';
 import { backendUp, apiList, apiSend } from '../lib/api';
 
 interface KanbanTask {
   id: string;
-  tenantId?: string;
   projectId?: string;
   title: string;
   description: string;
@@ -37,7 +35,7 @@ const COLUMNS: ColumnConfig[] = [
   { id: 'done', title: '已完成 (Done)', color: 'border-t-green-500 bg-green-50/10' },
 ];
 
-export default function KanbanBoard({ tenantId }: { tenantId: string }) {
+export default function KanbanBoard() {
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [useApi, setUseApi] = useState(false);
@@ -55,7 +53,7 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
     (async () => {
       try {
         if (await backendUp()) {
-          const items = await apiList<KanbanTask>('kanban', tenantId);
+          const items = await apiList<KanbanTask>('kanban');
           if (on) { setUseApi(true); setTasks(items); return; }
         }
       } catch { /* 掉回本地 */ }
@@ -66,15 +64,13 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
       }
     })();
     return () => { on = false; };
-  }, [tenantId]);
+  }, []);
 
   const refresh = async () => {
     try {
-      setTasks(await apiList<KanbanTask>('kanban', tenantId));
+      setTasks(await apiList<KanbanTask>('kanban'));
     } catch { setUseApi(false); }
   };
-
-  const tidOf = (id: string) => tasks.find((t) => t.id === id)?.tenantId || tenantId;
 
   // Save tasks helper（本地模式）
   const saveTasks = (newTasks: KanbanTask[]) => {
@@ -89,7 +85,7 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
 
     if (useApi) {
       try {
-        await apiSend('kanban', 'POST', apiTenantOf(), {
+        await apiSend('kanban', 'POST', {
           title: title.trim(), description: description.trim(), assignee: assignee.trim() || '未分配',
           priority, dueDate: dueDate || formatToday(), column: 'backlog',
         });
@@ -102,7 +98,6 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
 
     const newTask: KanbanTask = {
       id: Math.random().toString(36).substring(2, 9),
-      tenantId: tenantId === 'all' ? undefined : tenantId,
       title: title.trim(),
       description: description.trim(),
       assignee: assignee.trim() || '未分配',
@@ -123,17 +118,11 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
     setIsModalOpen(false);
   };
 
-  // ponytail: 後端 tenant 不接受 'all'，未知時預設 t-taipei（只影響無 tenantId 的舊卡）
-  const apiTenantOf = (id?: string) => {
-    const t = id ? tidOf(id) : tenantId;
-    return t === 'all' ? 't-taipei' : t;
-  };
-
   const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (useApi) {
       try {
-        await apiSend(`kanban/${id}`, 'DELETE', apiTenantOf(id));
+        await apiSend(`kanban/${id}`, 'DELETE');
         await refresh();
         return;
       } catch { setUseApi(false); }
@@ -156,7 +145,7 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
   const moveColumn = async (id: string, targetColumn: ColumnType) => {
     if (useApi) {
       try {
-        await apiSend(`kanban/${id}`, 'PATCH', apiTenantOf(id), { column: targetColumn });
+        await apiSend(`kanban/${id}`, 'PATCH', { column: targetColumn });
         await refresh();
         return;
       } catch { setUseApi(false); }
@@ -218,7 +207,7 @@ export default function KanbanBoard({ tenantId }: { tenantId: string }) {
       {/* Kanban Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {COLUMNS.map((col) => {
-          const colTasks = tasks.filter(t => t.column === col.id && inTenant(t, tenantId));
+          const colTasks = tasks.filter(t => t.column === col.id);
           
           return (
             <div

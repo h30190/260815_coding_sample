@@ -15,7 +15,7 @@ export default function TenantSwitcher({ value, onChange }: { value: string; onC
     (async () => {
       try {
         if (await backendUp()) {
-          const r = await apiGet<{ items: Tenant[] }>('/tenants', 'all');
+          const r = await apiGet<{ items: Tenant[] }>('/tenants');
           if (on && r.items.length > 0) setTenants(r.items);
         }
       } catch { /* 退回本地 */ }

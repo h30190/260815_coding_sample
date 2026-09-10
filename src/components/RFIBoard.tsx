@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ponytail: v1 只做唯讀列表 + 展開，資料吃 seed.ts 灌的 archclock_rfi；寫入操作下階段再加。
+// ponytail: RFI 議題追蹤 — 後端 API 模式 + localStorage fallback，單租戶。
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Paperclip, MessageSquare, Calendar, User, Plus, X } from 'lucide-react';
-import { saveList, listUsers, getProjects, getCurrentUserName, inTenant, DemoUser, Project } from '../lib/store';
+import { saveList, listUsers, getProjects, getCurrentUserName, DemoUser, Project } from '../lib/store';
 import { backendUp, apiList, apiSend, apiUpload, apiGet } from '../lib/api';
 
 interface RFIReply {
@@ -30,7 +30,6 @@ interface RFIAttachment {
 
 interface RFI {
   id: string;
-  tenantId: string;
   projectId: string;
   title: string;
   description: string;
@@ -58,7 +57,7 @@ const statusBadge = (r: RFI) => {
   return <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-green-50 text-green-700 border border-green-100 rounded-sm">已結案</span>;
 };
 
-export default function RFIBoard({ tenantId }: { tenantId: string }) {
+export default function RFIBoard() {
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -69,8 +68,8 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const [apiProjects, setApiProjects] = useState<Project[] | null>(null);
 
   // ponytail: 後端有名單就吃後端的（正式用），否則吃本地假資料
-  const users = apiUsers ?? listUsers(tenantId);
-  const projects = (apiProjects ?? getProjects()).filter((p) => inTenant(p, tenantId));
+  const users = apiUsers ?? listUsers('all');
+  const projects = apiProjects ?? getProjects();
   // 新增表單
   const [fTitle, setFTitle] = useState('');
   const [fDesc, setFDesc] = useState('');
@@ -85,18 +84,15 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     (async () => {
       try {
         if (await backendUp()) {
-          const items = await apiList<RFI>('rfis', tenantId);
+          const items = await apiList<RFI>('rfis');
           if (on) {
             setUseApi(true); setRfis(items);
-            // 同步抓使用者/專案名單（'all' 時各租戶合併）
-            const tids = tenantId === 'all'
-              ? (await apiGet<{ items: { id: string }[] }>('/tenants', 'all')).items.map((x) => x.id)
-              : [tenantId];
+            // 同步抓使用者/專案名單
             const [us, ps] = await Promise.all([
-              Promise.all(tids.map((t) => apiGet<{ items: DemoUser[] }>('/users', t).then((r) => r.items).catch(() => [] as DemoUser[]))),
-              Promise.all(tids.map((t) => apiGet<{ items: Project[] }>('/projects', t).then((r) => r.items).catch(() => [] as Project[]))),
+              apiGet<{ items: DemoUser[] }>('/users').then((r) => r.items).catch(() => [] as DemoUser[]),
+              apiGet<{ items: Project[] }>('/projects').then((r) => r.items).catch(() => [] as Project[]),
             ]);
-            if (on) { setApiUsers(us.flat()); setApiProjects(ps.flat()); }
+            if (on) { setApiUsers(us); setApiProjects(ps); }
             return;
           }
         }
@@ -108,11 +104,11 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
       }
     })();
     return () => { on = false; };
-  }, [tenantId]);
+  }, []);
 
   const refresh = async () => {
     try {
-      setRfis(await apiList<RFI>('rfis', tenantId));
+      setRfis(await apiList<RFI>('rfis'));
     } catch { setUseApi(false); }
   };
 
@@ -122,15 +118,13 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     saveList('archclock_rfi', next);
   };
 
-  const tidOf = (id: string) => rfis.find((r) => r.id === id)?.tenantId || tenantId;
-
   const addReply = async (id: string) => {
     const text = replyText.trim();
     if (!text) return;
     setReplyText('');
     if (useApi) {
       try {
-        await apiSend(`rfis/${id}/replies`, 'POST', tidOf(id), { by: getCurrentUserName(), text });
+        await apiSend(`rfis/${id}/replies`, 'POST', { by: getCurrentUserName(), text });
         await refresh();
         return;
       } catch { setUseApi(false); }
@@ -143,7 +137,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const setStatus = async (id: string, status: RFI['status']) => {
     if (useApi) {
       try {
-        await apiSend(`rfis/${id}`, 'PATCH', tidOf(id), { status });
+        await apiSend(`rfis/${id}`, 'PATCH', { status });
         await refresh();
         return;
       } catch { setUseApi(false); }
@@ -158,7 +152,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     if (useApi) {
       (async () => {
         try {
-          for (const f of arr) await apiUpload(id, tidOf(id), f);
+          for (const f of arr) await apiUpload(id, f);
           await refresh();
         } catch { setUseApi(false); }
       })();
@@ -173,11 +167,10 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     });
   };
 
-  // 新增 RFI：API 模式編號由後端接續，本地模式自行接續 RFI-2026-XXX
+  // 新增 RFI
   const createRFI = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fTitle.trim()) return;
-    const tid = tenantId === 'all' ? (projects[0]?.tenantId || 't-taipei') : tenantId;
     const body = {
       projectId: fProject || projects[0]?.id || '', title: fTitle.trim(), description: fDesc.trim(),
       askedBy: getCurrentUserName(), assignedTo: fAssignee || users[0]?.displayName || '未分配',
@@ -185,7 +178,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     };
     if (useApi) {
       try {
-        const { id } = await apiSend<{ id: string }>('rfis', 'POST', tid, body);
+        const { id } = await apiSend<{ id: string }>('rfis', 'POST', body);
         setFTitle(''); setFDesc(''); setFProject(''); setFAssignee(''); setFDue(''); setFDrawings('');
         setIsModalOpen(false);
         await refresh();
@@ -197,7 +190,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     const next = `RFI-2026-${String(Math.max(0, ...nums) + 1).padStart(3, '0')}`;
     const now = new Date().toISOString();
     const rfi: RFI = {
-      id: next, tenantId: tid,
+      id: next,
       projectId: fProject || projects[0]?.id || '', title: fTitle.trim(), description: fDesc.trim(),
       askedBy: getCurrentUserName(), assignedTo: fAssignee || users[0]?.displayName || '未分配', cc: [],
       status: 'open', priority: 'medium', dueDate: fDue || now.split('T')[0],
@@ -209,7 +202,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     setExpanded(next);
   };
 
-  const visible = rfis.filter((r) => inTenant(r, tenantId)).filter((r) => {
+  const visible = rfis.filter((r) => {
     if (filter === 'all') return true;
     if (filter === 'overdue') return isOverdue(r);
     return r.status === filter;
@@ -227,7 +220,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
     return (
       <div className="w-full text-center py-16 border border-dashed border-neutral-300 rounded-sm">
         <p className="text-sm text-neutral-500">尚無 RFI 資料</p>
-        <p className="text-xs text-neutral-400 mt-1">請先回登入頁按「一鍵載入教學假資料」</p>
+        <p className="text-xs text-neutral-400 mt-1">請先回登入頁用 demo/demo 載入教學假資料</p>
       </div>
     );
   }
@@ -386,7 +379,7 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
                   </select>
                   <select value={fAssignee} onChange={(e) => setFAssignee(e.target.value)}
                     className="px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm rounded-sm text-neutral-800">
-                    <option value="">指派給（同租戶）</option>
+                    <option value="">指派給</option>
                     {users.map((u) => <option key={u.uid} value={u.displayName}>{u.displayName}</option>)}
                   </select>
                 </div>
