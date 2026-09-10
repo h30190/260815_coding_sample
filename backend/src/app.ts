@@ -30,6 +30,31 @@ const J = (s: any, fb: any = []) => { try { return JSON.parse(s || 'null') ?? fb
 
 // ---- 基礎 ----
 app.get('/api/v1/tenants', (_req, res) => res.json({ items: db.prepare('SELECT * FROM tenants').all() }));
+app.post('/api/v1/tenants', (req, res) => {
+  const { id, name, office } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name 必填' });
+  const tid = id || 't-' + uid();
+  try {
+    db.prepare('INSERT INTO tenants (id, name, office) VALUES (?, ?, ?)').run(tid, name.trim(), office || '');
+  } catch { return res.status(409).json({ error: '租戶已存在' }); }
+  res.status(201).json({ id: tid });
+});
+app.post('/api/v1/users', (req, res) => {
+  const t = (req as any).tenantId;
+  const { displayName, email, role, office } = req.body;
+  if (!displayName?.trim()) return res.status(400).json({ error: 'displayName 必填' });
+  const u = 'u-' + uid();
+  db.prepare('INSERT INTO users (uid, tenantId, displayName, email, role, office) VALUES (?, ?, ?, ?, ?, ?)').run(u, t, displayName.trim(), email || '', role || 'staff', office || '');
+  res.status(201).json({ uid: u });
+});
+app.post('/api/v1/projects', (req, res) => {
+  const t = (req as any).tenantId;
+  const { name, code } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name 必填' });
+  const p = 'p-' + uid();
+  db.prepare('INSERT INTO projects (id, tenantId, name, code, status) VALUES (?, ?, ?, ?, ?)').run(p, t, name.trim(), code || '', 'active');
+  res.status(201).json({ id: p });
+});
 app.get('/api/v1/projects', (req, res) => {
   const t = (req as any).tenantId;
   res.json({ items: db.prepare('SELECT * FROM projects WHERE tenantId = ?').all(t) });

@@ -8,8 +8,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, Paperclip, MessageSquare, Calendar, User, Plus, X } from 'lucide-react';
-import { saveList, listUsers, getProjects, getCurrentUserName, inTenant } from '../lib/store';
-import { backendUp, apiList, apiSend, apiUpload } from '../lib/api';
+import { saveList, listUsers, getProjects, getCurrentUserName, inTenant, DemoUser, Project } from '../lib/store';
+import { backendUp, apiList, apiSend, apiUpload, apiGet } from '../lib/api';
 
 interface RFIReply {
   by: string;
@@ -65,6 +65,12 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const [replyText, setReplyText] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [useApi, setUseApi] = useState(false);
+  const [apiUsers, setApiUsers] = useState<DemoUser[] | null>(null);
+  const [apiProjects, setApiProjects] = useState<Project[] | null>(null);
+
+  // ponytail: 後端有名單就吃後端的（正式用），否則吃本地假資料
+  const users = apiUsers ?? listUsers(tenantId);
+  const projects = (apiProjects ?? getProjects()).filter((p) => inTenant(p, tenantId));
   // 新增表單
   const [fTitle, setFTitle] = useState('');
   const [fDesc, setFDesc] = useState('');
@@ -73,9 +79,6 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
   const [fDue, setFDue] = useState('');
   const [fDrawings, setFDrawings] = useState('');
 
-  const users = listUsers(tenantId);
-  const projects = getProjects().filter((p) => inTenant(p, tenantId));
-
   // ponytail: 後端有開就吃 API（多人共用同一份），沒開退回 localStorage（單機 demo）
   useEffect(() => {
     let on = true;
@@ -83,11 +86,23 @@ export default function RFIBoard({ tenantId }: { tenantId: string }) {
       try {
         if (await backendUp()) {
           const items = await apiList<RFI>('rfis', tenantId);
-          if (on) { setUseApi(true); setRfis(items); return; }
+          if (on) {
+            setUseApi(true); setRfis(items);
+            // 同步抓使用者/專案名單（'all' 時各租戶合併）
+            const tids = tenantId === 'all'
+              ? (await apiGet<{ items: { id: string }[] }>('/tenants', 'all')).items.map((x) => x.id)
+              : [tenantId];
+            const [us, ps] = await Promise.all([
+              Promise.all(tids.map((t) => apiGet<{ items: DemoUser[] }>('/users', t).then((r) => r.items).catch(() => [] as DemoUser[]))),
+              Promise.all(tids.map((t) => apiGet<{ items: Project[] }>('/projects', t).then((r) => r.items).catch(() => [] as Project[]))),
+            ]);
+            if (on) { setApiUsers(us.flat()); setApiProjects(ps.flat()); }
+            return;
+          }
         }
       } catch { /* 掉回本地 */ }
       if (on) {
-        setUseApi(false);
+        setUseApi(false); setApiUsers(null); setApiProjects(null);
         const saved = localStorage.getItem('archclock_rfi');
         if (saved) setRfis(JSON.parse(saved));
       }

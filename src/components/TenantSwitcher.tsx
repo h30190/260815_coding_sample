@@ -3,12 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2 } from 'lucide-react';
-import { getTenants } from '../lib/store';
+import { getTenants, Tenant } from '../lib/store';
+import { backendUp, apiGet } from '../lib/api';
 
 export default function TenantSwitcher({ value, onChange }: { value: string; onChange: (id: string) => void }) {
-  const tenants = getTenants();
+  const [tenants, setTenants] = useState<Tenant[]>(getTenants());
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        if (await backendUp()) {
+          const r = await apiGet<{ items: Tenant[] }>('/tenants', 'all');
+          if (on && r.items.length > 0) setTenants(r.items);
+        }
+      } catch { /* 退回本地 */ }
+    })();
+    return () => { on = false; };
+  }, []);
   if (tenants.length === 0) return null;
   return (
     <label className="hidden md:flex items-center space-x-2 pr-4 border-r border-neutral-100" title="切換租戶（驗證資料隔離）">
