@@ -14,6 +14,9 @@ import ClockPanel from './components/ClockPanel';
 import AttendanceList from './components/AttendanceList';
 import WorkHoursCalculator from './components/WorkHoursCalculator';
 import KanbanBoard from './components/KanbanBoard';
+import RFIBoard from './components/RFIBoard';
+import TenantSwitcher from './components/TenantSwitcher';
+import { getTenantId, setTenantId } from './lib/store';
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -24,10 +27,13 @@ export default function App() {
   const [name, setName] = useState('');
   const [roleInput, setRoleInput] = useState<'architect' | 'admin' | 'staff'>('architect');
   const [officeInput, setOfficeInput] = useState('Taipei Headquarters');
-  const [activeTab, setActiveTab] = useState<'clock' | 'hours' | 'kanban'>('clock');
+  const [activeTab, setActiveTab] = useState<'clock' | 'hours' | 'kanban' | 'rfi'>('clock');
+  const [tenantId, setTenantIdState] = useState(getTenantId());
+  const changeTenant = (id: string) => { setTenantId(id); setTenantIdState(id); };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    // ponytail: 本地 MockAuth 執行期帶 role/office，型別上不是 Firebase User，用 any 接住
+    const unsubscribe = onAuthStateChanged(auth as any, async (firebaseUser: any) => {
       setLoading(true);
       if (firebaseUser) {
         setUser(firebaseUser);
@@ -107,6 +113,7 @@ export default function App() {
 
         {profile && (
           <div className="flex items-center space-x-4">
+            <TenantSwitcher value={tenantId} onChange={changeTenant} />
             <div className="hidden sm:flex items-center space-x-3 pr-4 border-r border-neutral-100">
               <div className="text-right">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-neutral-400 leading-none mb-1">{profile.role}</p>
@@ -225,7 +232,7 @@ export default function App() {
               key="dashboard"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={`mx-auto space-y-8 transition-all duration-300 ${activeTab === 'kanban' ? 'max-w-7xl' : 'max-w-4xl'}`}
+              className={`mx-auto space-y-8 transition-all duration-300 ${activeTab === 'clock' || activeTab === 'hours' ? 'max-w-4xl' : 'max-w-7xl'}`}
             >
               {/* Tab Selector */}
               <div className="flex justify-center space-x-8 border-b border-neutral-200 pb-px">
@@ -262,6 +269,17 @@ export default function App() {
                     <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
                   )}
                 </button>
+                <button
+                  onClick={() => setActiveTab('rfi')}
+                  className={`pb-4 text-xs font-bold uppercase tracking-[0.2em] transition-all relative ${
+                    activeTab === 'rfi' ? 'text-neutral-900' : 'text-neutral-400 hover:text-neutral-900'
+                  }`}
+                >
+                  RFI追蹤
+                  {activeTab === 'rfi' && (
+                    <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
+                  )}
+                </button>
               </div>
 
               {/* Tab Content */}
@@ -279,9 +297,13 @@ export default function App() {
                   <div>
                     <WorkHoursCalculator userId={user.uid} />
                   </div>
+                ) : activeTab === 'kanban' ? (
+                  <div>
+                    <KanbanBoard tenantId={tenantId} />
+                  </div>
                 ) : (
                   <div>
-                    <KanbanBoard />
+                    <RFIBoard tenantId={tenantId} />
                   </div>
                 )}
               </div>

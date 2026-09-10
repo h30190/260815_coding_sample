@@ -6,9 +6,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Calendar, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { inTenant } from '../lib/store';
 
 interface KanbanTask {
   id: string;
+  tenantId?: string;
+  projectId?: string;
   title: string;
   description: string;
   assignee: string;
@@ -33,7 +36,7 @@ const COLUMNS: ColumnConfig[] = [
   { id: 'done', title: '已完成 (Done)', color: 'border-t-green-500 bg-green-50/10' },
 ];
 
-export default function KanbanBoard() {
+export default function KanbanBoard({ tenantId }: { tenantId: string }) {
   const [tasks, setTasks] = useState<KanbanTask[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -65,6 +68,7 @@ export default function KanbanBoard() {
 
     const newTask: KanbanTask = {
       id: Math.random().toString(36).substring(2, 9),
+      tenantId: tenantId === 'all' ? undefined : tenantId,
       title: title.trim(),
       description: description.trim(),
       assignee: assignee.trim() || '未分配',
@@ -165,7 +169,7 @@ export default function KanbanBoard() {
       {/* Kanban Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {COLUMNS.map((col) => {
-          const colTasks = tasks.filter(t => t.column === col.id);
+          const colTasks = tasks.filter(t => t.column === col.id && inTenant(t, tenantId));
           
           return (
             <div
