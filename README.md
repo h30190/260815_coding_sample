@@ -1,10 +1,12 @@
-# ArchClock 教學範本
+# HJPLUS.DESIGN 管理系統開發範例
 
-建築師事務所用的打卡 + 工時 + 看板專案管理系統，兼作開發教學範本：**完全本地化**（`localStorage`，無雲端連線），內建一鍵教學假資料。
+用來展示前端工程實踐的開發範例專案：打卡、工時統計、看板專案管理、RFI 議題追蹤，前後端分離架構。
 
 ## 技術棧
 
-React 19 + TypeScript + Vite 6 ｜ Tailwind CSS + motion/react + Lucide ｜ 資料層 `src/lib/firebase.ts`（localStorage 模擬 Firestore API，日後可無痛切回真實資料庫）
+- **前端**：React 19 + TypeScript + Vite 6 + Tailwind CSS + motion/react + Lucide
+- **後端**：Express 4 + better-sqlite3（REST API，單租戶）
+- **資料層**：localStorage（前端 fallback）+ SQLite（後端正式）
 
 ## 快速開始
 
@@ -24,7 +26,7 @@ scripts\start.bat           # 一鍵啟動（後端 :3001 + 前端 :3000 + 開�
 
 ## 教學假資料
 
-`scripts\start.bat` 啟動時自動灌入：1 租戶、6 使用者、2 專案、12 張看板卡（4 欄各 3）、8 筆完整版 RFI（含逾期示範 `RFI-2026-005`）、5 筆回覆。
+`scripts\start.bat` 啟動時自動灌入：1 租戶、9 使用者、4 專案、22 張看板卡、15 筆 RFI（含逾期示範）、11 筆回覆。
 
 ## 文件索引
 
@@ -32,13 +34,7 @@ scripts\start.bat           # 一鍵啟動（後端 :3001 + 前端 :3000 + 開�
 | :--- | :--- |
 | `AGENTS.md` | 專案架構、規範、AI 助理運作準則 |
 | `DESIGN.md` | 設計原則、配色、組件、儲存結構 |
-| `docs/spec/01_functional.md` | 打卡、工時、看板功能規格 |
-| `docs/spec/02_security.md` | 本地安全規則、Firebase 對照 |
-| `docs/spec/03_data.md` | TypeScript 型別、localStorage schema |
-| `docs/spec/04_supervision.md` | 專管系統：多租戶、RFI、附件貼圖、指派 |
-| `docs/spec/05_api.md` | 前後端分離 REST API（Express + SQLite 規劃） |
-| `docs/spec/06_data-multitenant.md` | 多租戶資料：localStorage 對照 SQLite schema |
-| `docs/plan/README.md` | 後續開發路線圖 |
+| `docs/spec/` | 功能規格、API 設計、資料模型 |
 
 ## 授權
 
