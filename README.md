@@ -9,18 +9,22 @@ React 19 + TypeScript + Vite 6 ｜ Tailwind CSS + motion/react + Lucide ｜ 資�
 ## 快速開始
 
 ```bat
-scripts\start-all.bat      # 一鍵啟動（後端 :3001 + 前端 :3000 + 開瀏覽器）
-scripts\start-prod.bat     # 正式用：乾淨資料庫，預設 admin/admin
-scripts\start-dev.bat      # 開發用：自動灌教學假資料
+scripts\start.bat           # 一鍵啟動（後端 :3001 + 前端 :3000 + 開瀏覽器）
 ```
 
 或手動：`npm install` → `npm run dev`（`npm run build` 打包、`npm run lint` 型別檢查）。
 
+## 帳號分流
+
+| 帳號 | 密碼 | 說明 |
+| :--- | :--- | :--- |
+| `demo` | `demo` | 載入教學假資料到前端（localStorage） |
+| `dev` | `dev` | 開發模式：後端有資料，前端從 API 拉，不自動塞 localStorage |
+| `admin` | `admin` | 乾淨系統，首次登入強制改帳號密碼 |
+
 ## 教學假資料
 
-`scripts\start-dev.bat` 啟動時自動灌入：2 租戶、6 使用者、3 專案、12 張看板卡（4 欄各 3）、8 筆完整版 RFI（含逾期示範 `RFI-2026-005`）、9 筆打卡（含外點巡檢）。
-
-`scripts\start-prod.bat` 不灌假資料，預設帳號 `admin` / `admin`，首次登入需改密碼。
+`scripts\start.bat` 啟動時自動灌入：1 租戶、6 使用者、2 專案、12 張看板卡（4 欄各 3）、8 筆完整版 RFI（含逾期示範 `RFI-2026-005`）、5 筆回覆。
 
 ## 文件索引
 

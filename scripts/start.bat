@@ -1,9 +1,9 @@
 @echo off
-title HJPLUS.DESIGN 正式模式
+title HJPLUS.DESIGN
 cd /d "%~dp0..\backend"
 
-echo [1/3] 啟動後端（乾淨資料庫）...
-start "後端 :3001" cmd /c "npm run start"
+echo [1/3] 啟動後端...
+start "後端 :3001" cmd /c "npm run start -- --seed"
 
 :waitbe
 timeout /t 1 /nobreak >NUL
@@ -24,5 +24,8 @@ echo       前端已就緒
 echo [3/3] 開啟瀏覽器...
 start http://localhost:3000
 echo.
-echo 正式環境已啟動。預設帳號 admin / admin，首次登入請改密碼。
+echo 系統已啟動。帳號分流：
+echo   demo / demo  — 載入教學假資料
+echo   dev  / dev   — 開發模式（有資料、不自動塞前端）
+echo   admin / admin — 乾淨系統（首次登入請改密碼）
 pause

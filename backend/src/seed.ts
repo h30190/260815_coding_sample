@@ -17,10 +17,10 @@ export function runSeed(): { tenants: number; rfis: number; tasks: number } {
     const insRep = db.prepare('INSERT INTO rfi_replies (rfiId, byUser, text, at) VALUES (?, ?, ?, ?)');
     TENANTS.forEach((x) => insT.run(x.id, x.name, x.office));
     USERS.forEach((x) => {
-      // ponytail: demo/demo 與 admin/admin 都灌密碼，其餘 must_change=1
-      const isDefault = x.uid === 'demo' || x.uid === 'admin';
-      const pw = isDefault ? hashPassword(x.uid === 'demo' ? 'demo' : 'admin') : null;
-      insU.run(x.uid, x.tenantId, x.displayName, x.email, x.role, x.office, pw, isDefault ? 0 : 1);
+      // ponytail: demo/demo、dev/dev、admin/admin 都灌密碼，其餘 must_change=1
+      const defaultPws: Record<string, string> = { demo: 'demo', dev: 'dev', admin: 'admin' };
+      const pw = defaultPws[x.uid] ? hashPassword(defaultPws[x.uid]) : null;
+      insU.run(x.uid, x.tenantId, x.displayName, x.email, x.role, x.office, pw, pw ? 0 : 1);
     });
     PROJECTS.forEach((x) => insP.run(x.id, x.tenantId, x.name, x.code, x.status));
     TASKS.forEach((x) => insK.run(x.id, x.tenantId, x.projectId, x.title, x.description, x.assignee, x.priority, x.dueDate, x.col, x.createdAt));

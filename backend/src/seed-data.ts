@@ -11,6 +11,8 @@ export const TENANTS = [
 
 export const USERS = [
   { uid: 'demo', tenantId: 't-default', displayName: 'Demo User', email: '', role: 'staff', office: '' },
+  { uid: 'dev', tenantId: 't-default', displayName: 'Developer', email: '', role: 'admin', office: '' },
+  { uid: 'admin', tenantId: 't-default', displayName: 'Admin', email: '', role: 'admin', office: '' },
   { uid: 'u-james', tenantId: 't-default', displayName: 'James Peng', email: 'james@office.lan', role: 'architect', office: 'Taipei Headquarters' },
   { uid: 'u-mei', tenantId: 't-default', displayName: 'Mei Chen', email: 'mei@office.lan', role: 'admin', office: 'Taipei Headquarters' },
   { uid: 'u-ken', tenantId: 't-default', displayName: 'Ken Lu', email: 'ken@office.lan', role: 'staff', office: 'Taipei Headquarters' },

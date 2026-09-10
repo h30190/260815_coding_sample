@@ -72,7 +72,7 @@ app.post('/api/v1/login', (req, res) => {
   const { account, password } = req.body;
   const u = db.prepare('SELECT uid, tenantId, displayName, role, password_hash, must_change FROM users WHERE uid = ?').get(account) as any;
 
-  // demo 帳號：自動灌資料再登入
+  // demo 帳號：自動灌資料再登入，回傳 demoData 讓前端塞 localStorage
   if (account === 'demo' && password === 'demo') {
     if (!u) {
       runSeed();
@@ -105,6 +105,18 @@ app.post('/api/v1/login', (req, res) => {
           attachments: db.prepare('SELECT id, fileName, mime, size, uploadedBy, createdAt FROM attachments WHERE rfiId = ?').all(row.id),
         })),
       },
+    });
+  }
+
+  // dev 帳號：自動灌資料再登入，不回傳 demoData（前端從 API 拉）
+  if (account === 'dev' && password === 'dev') {
+    if (!u) runSeed();
+    const du = db.prepare('SELECT uid, tenantId, displayName, role FROM users WHERE uid = ?').get('dev') as any;
+    if (!du) return res.status(500).json({ error: 'dev seed 失敗' });
+    const t = db.prepare('SELECT name FROM tenants WHERE id = ?').get(du.tenantId) as any;
+    return res.json({
+      uid: du.uid, displayName: du.displayName, role: du.role,
+      tenantId: du.tenantId, tenantName: t?.name || '', mustChange: false,
     });
   }
 
