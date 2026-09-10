@@ -17,6 +17,8 @@ import KanbanBoard from './components/KanbanBoard';
 import RFIBoard from './components/RFIBoard';
 import TenantSwitcher from './components/TenantSwitcher';
 import { getTenantId, setTenantId } from './lib/store';
+import { backendUp, apiLogin, apiChangePassword, getSession, setSession, Session } from './lib/api';
+import AdminSetup from './components/AdminSetup';
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -27,11 +29,32 @@ export default function App() {
   const [name, setName] = useState('');
   const [roleInput, setRoleInput] = useState<'architect' | 'admin' | 'staff'>('architect');
   const [officeInput, setOfficeInput] = useState('Taipei Headquarters');
-  const [activeTab, setActiveTab] = useState<'clock' | 'hours' | 'kanban' | 'rfi'>('clock');
+  const [activeTab, setActiveTab] = useState<'clock' | 'hours' | 'kanban' | 'rfi' | 'admin'>('clock');
   const [tenantId, setTenantIdState] = useState(getTenantId());
   const changeTenant = (id: string) => { setTenantId(id); setTenantIdState(id); };
+  // 後端帳密登入
+  const [account, setAccount] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [forcePw, setForcePw] = useState<Session | null>(null);
+  const [newPw, setNewPw] = useState('');
+  const [pwError, setPwError] = useState('');
 
   useEffect(() => {
+    // ponytail: 有後端 session 直接還原，不走 MockAuth
+    const s = getSession();
+    if (s && !s.mustChange) {
+      setUser({ uid: s.uid } as any);
+      setProfile({ uid: s.uid, displayName: s.displayName, email: '', role: s.role as any, office: s.tenantName });
+      changeTenant(s.tenantId);
+      setLoading(false);
+      return;
+    }
+    if (s?.mustChange) {
+      setForcePw(s);
+      setLoading(false);
+      return;
+    }
     // ponytail: 本地 MockAuth 執行期帶 role/office，型別上不是 Firebase User，用 any 接住
     const unsubscribe = onAuthStateChanged(auth as any, async (firebaseUser: any) => {
       setLoading(true);
@@ -64,11 +87,35 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  const applySession = (s: Session) => {
+    setSession(s);
+    setUser({ uid: s.uid } as any);
+    setProfile({ uid: s.uid, displayName: s.displayName, email: '', role: s.role as any, office: s.tenantName });
+    changeTenant(s.tenantId);
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    setLoginError('');
+    // 後端有開走帳密登入；沒開退回舊單機模式（帳號當姓名）
+    if (await backendUp()) {
+      if (!account.trim() || !password) return;
+      try {
+        const s = await apiLogin(account.trim(), password);
+        if (s.mustChange) {
+          setSession(s);
+          setForcePw(s);
+        } else {
+          applySession(s);
+        }
+      } catch (err: any) {
+        setLoginError(err.message);
+      }
+      return;
+    }
+    if (!name.trim() && !account.trim()) return;
     try {
-      (auth as any).signIn(name.trim(), roleInput, officeInput);
+      (auth as any).signIn(name.trim() || account.trim(), roleInput, officeInput);
     } catch (error) {
       console.error('Login failed:', error);
     }
@@ -85,6 +132,8 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    setSession(null);
+    setForcePw(null);
     try {
       await signOut(auth);
     } catch (error) {
@@ -92,10 +141,48 @@ export default function App() {
     }
   };
 
+  const handleForcePw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    if (!forcePw || newPw.length < 4) {
+      setPwError('新密碼至少 4 碼');
+      return;
+    }
+    try {
+      await apiChangePassword(forcePw.uid, (document.getElementById('oldPw') as HTMLInputElement)?.value || '', newPw);
+      const s = { ...forcePw, mustChange: false };
+      setForcePw(null);
+      setNewPw('');
+      applySession(s);
+    } catch (err: any) {
+      setPwError(err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
         <Loader2 className="h-8 w-8 text-neutral-900 animate-spin" />
+      </div>
+    );
+  }
+
+  // 首登強制改密碼：不給進系統，直到改完
+  if (forcePw) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-6">
+        <form onSubmit={handleForcePw} className="w-full max-w-sm bg-white p-8 border border-neutral-200 shadow-sm rounded-sm space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-lg font-medium uppercase tracking-wider">請先變更密碼</h2>
+            <p className="text-xs text-neutral-500">帳號 {forcePw.uid} 使用初始密碼登入，需先設定自己的密碼</p>
+          </div>
+          <input id="oldPw" type="password" required placeholder="舊密碼（初始密碼）"
+            className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 rounded-sm" />
+          <input type="password" required placeholder="新密碼（至少 4 碼）" value={newPw} onChange={(e) => setNewPw(e.target.value)}
+            className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 rounded-sm" />
+          {pwError && <p className="text-xs text-red-600 text-center">{pwError}</p>}
+          <button className="w-full py-4 bg-neutral-900 text-white text-sm font-medium uppercase tracking-[0.2em] rounded-sm">確認變更並進入</button>
+        </form>
       </div>
     );
   }
@@ -161,23 +248,37 @@ export default function App() {
               </div>
 
               <div className="space-y-4 pt-4 text-left max-w-sm mx-auto bg-white p-8 border border-neutral-200 shadow-sm rounded-sm">
-                <h2 className="text-lg font-medium text-neutral-900 mb-6 uppercase tracking-wider text-center">設定個人檔案</h2>
-                
+                <h2 className="text-lg font-medium text-neutral-900 mb-6 uppercase tracking-wider text-center">登入</h2>
+
                 <form onSubmit={handleLoginSubmit} className="space-y-6">
                   <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">員工姓名 (Name)</label>
+                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">帳號 (Account)</label>
                     <input
                       type="text"
                       required
-                      placeholder="例如: James Peng"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      placeholder="例如: admin（預設 admin/admin）"
+                      value={account}
+                      onChange={(e) => setAccount(e.target.value)}
                       className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 transition-colors rounded-sm"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">職級 (Role)</label>
+                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">密碼 (Password)</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="後端沒開時免填，直接用帳號當姓名登入"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 transition-colors rounded-sm"
+                    />
+                  </div>
+
+                  {loginError && <p className="text-xs text-red-600 text-center">{loginError}</p>}
+
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">職級 (Role，僅單機模式用)</label>
                     <select
                       value={roleInput}
                       onChange={(e) => setRoleInput(e.target.value as any)}
@@ -190,7 +291,17 @@ export default function App() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">辦公室 (Office)</label>
+                    <label className="block text-[10px] uppercase tracking-widest text-neutral-400 font-bold">姓名 / 辦公室 (單機模式用)</label>
+                    <input
+                      type="text"
+                      placeholder="例如: James Peng"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full px-4 py-3 bg-neutral-50 border border-neutral-200 text-sm focus:outline-none focus:border-neutral-900 transition-colors rounded-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <input
                       type="text"
                       placeholder="例如: 台北總部"
@@ -280,6 +391,19 @@ export default function App() {
                     <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
                   )}
                 </button>
+                {profile?.role === 'admin' && (
+                  <button
+                    onClick={() => setActiveTab('admin')}
+                    className={`pb-4 text-xs font-bold uppercase tracking-[0.2em] transition-all relative ${
+                      activeTab === 'admin' ? 'text-neutral-900' : 'text-neutral-400 hover:text-neutral-900'
+                    }`}
+                  >
+                    設定
+                    {activeTab === 'admin' && (
+                      <motion.div layoutId="tab-underline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-900" />
+                    )}
+                  </button>
+                )}
               </div>
 
               {/* Tab Content */}
@@ -301,9 +425,13 @@ export default function App() {
                   <div>
                     <KanbanBoard tenantId={tenantId} />
                   </div>
-                ) : (
+                ) : activeTab === 'rfi' ? (
                   <div>
                     <RFIBoard tenantId={tenantId} />
+                  </div>
+                ) : (
+                  <div>
+                    <AdminSetup tenantId={tenantId} />
                   </div>
                 )}
               </div>

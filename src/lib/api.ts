@@ -53,3 +53,34 @@ export const apiUpload = (rfiId: string, tenantId: string, file: File): Promise<
   fd.append('file', file);
   return req(`rfis/${rfiId}/attachments`, tenantId, { method: 'POST', body: fd });
 };
+
+export interface Session {
+  uid: string;
+  displayName: string;
+  role: string;
+  tenantId: string;
+  tenantName: string;
+  mustChange: boolean;
+}
+
+// ponytail: 登入/改密碼不帶租戶頭（後端白名單），session 存 localStorage
+export async function apiLogin(account: string, password: string): Promise<Session> {
+  const r = await fetch(`${BASE}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, password }) });
+  if (!r.ok) throw new Error((await r.json()).error || '登入失敗');
+  return r.json();
+}
+export async function apiChangePassword(account: string, oldPassword: string, newPassword: string): Promise<void> {
+  const r = await fetch(`${BASE}/change-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account, oldPassword, newPassword }) });
+  if (!r.ok) throw new Error((await r.json()).error || '改密碼失敗');
+}
+export const getSession = (): Session | null => {
+  try {
+    return JSON.parse(localStorage.getItem('archclock_session') || 'null');
+  } catch {
+    return null;
+  }
+};
+export const setSession = (s: Session | null): void => {
+  if (s) localStorage.setItem('archclock_session', JSON.stringify(s));
+  else localStorage.removeItem('archclock_session');
+};

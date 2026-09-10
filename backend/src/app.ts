@@ -8,7 +8,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
-import { db } from './db';
+import { db, hashPassword, verifyPassword } from './db';
 import { runSeed } from './seed';
 
 const PORT = Number(process.env.BACKEND_PORT || 3001);
@@ -16,9 +16,11 @@ const app = express();
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'data', 'uploads')));
 
-// ---- 租戶中介層：資源路由必填 X-Tenant-Id ----
+// ---- 租戶中介層：資源路由必填 X-Tenant-Id；只有建租戶/登入系免頭 ----
 app.use('/api/v1', (req, res, next) => {
-  if (['/tenants', '/seed', '/reset'].some((p) => req.path.startsWith(p))) return next();
+  const open = (req.path === '/tenants' && (req.method === 'GET' || req.method === 'POST'))
+    || ['/seed', '/reset', '/login', '/change-password'].some((p) => req.path.startsWith(p));
+  if (open) return next();
   const tid = req.header('X-Tenant-Id');
   if (!tid) return res.status(400).json({ error: '缺少 X-Tenant-Id' });
   (req as any).tenantId = tid;
@@ -41,11 +43,22 @@ app.post('/api/v1/tenants', (req, res) => {
 });
 app.post('/api/v1/users', (req, res) => {
   const t = (req as any).tenantId;
-  const { displayName, email, role, office } = req.body;
+  const { uid: wantUid, displayName, email, role, office, password } = req.body;
   if (!displayName?.trim()) return res.status(400).json({ error: 'displayName 必填' });
-  const u = 'u-' + uid();
-  db.prepare('INSERT INTO users (uid, tenantId, displayName, email, role, office) VALUES (?, ?, ?, ?, ?, ?)').run(u, t, displayName.trim(), email || '', role || 'staff', office || '');
+  const u = wantUid || 'u-' + uid();
+  try {
+    db.prepare('INSERT INTO users (uid, tenantId, displayName, email, role, office, password_hash, must_change) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
+      u, t, displayName.trim(), email || '', role || 'staff', office || '', password ? hashPassword(password) : null, password ? 0 : 1);
+  } catch { return res.status(409).json({ error: '帳號已存在' }); }
   res.status(201).json({ uid: u });
+});
+app.patch('/api/v1/tenants/:id', (req, res) => {
+  const t = (req as any).tenantId;
+  if (req.params.id !== t) return res.status(403).json({ error: '只能改自己租戶' });
+  const { name, office } = req.body;
+  if (!name?.trim()) return res.status(400).json({ error: 'name 必填' });
+  db.prepare('UPDATE tenants SET name = ?, office = ? WHERE id = ?').run(name.trim(), office || '', t);
+  res.json({ ok: true });
 });
 app.post('/api/v1/projects', (req, res) => {
   const t = (req as any).tenantId;
@@ -65,6 +78,27 @@ app.get('/api/v1/users', (req, res) => {
 });
 app.post('/api/v1/seed', (_req, res) => res.json(runSeed()));
 app.post('/api/v1/reset', (_req, res) => res.json(runSeed()));
+
+// ---- 登入：帳號(uid)+密碼；新人/重置者 mustChange=1 擋下強制改密碼 ----
+app.post('/api/v1/login', (req, res) => {
+  const { account, password } = req.body;
+  const u = db.prepare('SELECT uid, tenantId, displayName, role, password_hash, must_change FROM users WHERE uid = ?').get(account) as any;
+  if (!u || !u.password_hash || !verifyPassword(password || '', u.password_hash)) {
+    return res.status(401).json({ error: '帳號或密碼錯誤' });
+  }
+  const t = db.prepare('SELECT * FROM tenants WHERE id = ?').get(u.tenantId) as any;
+  res.json({ uid: u.uid, displayName: u.displayName, role: u.role, tenantId: u.tenantId, tenantName: t?.name || '', mustChange: (u.must_change || 0) === 1 });
+});
+app.post('/api/v1/change-password', (req, res) => {
+  const { account, oldPassword, newPassword } = req.body;
+  if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: '新密碼至少 4 碼' });
+  const u = db.prepare('SELECT password_hash FROM users WHERE uid = ?').get(account) as any;
+  if (!u || !verifyPassword(oldPassword || '', u.password_hash)) {
+    return res.status(401).json({ error: '舊密碼錯誤' });
+  }
+  db.prepare('UPDATE users SET password_hash = ?, must_change = 0 WHERE uid = ?').run(hashPassword(newPassword), account);
+  res.json({ ok: true });
+});
 
 // ---- 看板 ----
 app.get('/api/v1/kanban', (req, res) => {
