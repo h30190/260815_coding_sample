@@ -17,6 +17,13 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      // ponytail: 埠號寫死 + strictPort，避免跟 Wails 或其他 Vite 專案打架（被佔用直接報錯不自動跳埠）
+      port: 3000,
+      strictPort: true,
+    },
+    preview: {
+      port: 4173,
+      strictPort: true,
     },
   };
 });
