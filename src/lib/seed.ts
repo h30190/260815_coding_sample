@@ -16,7 +16,7 @@ export interface DemoUser extends DemoTenant {
 }
 
 export const DEMO_TENANTS: DemoTenant[] = [
-  { id: 't-taipei', name: '宗邁建築師事務所', office: 'Taipei Headquarters' },
+  { id: 't-taipei', name: 'OO建築師事務所', office: 'Taipei Headquarters' },
   { id: 't-taichung', name: '台中分所', office: 'Taichung Office' },
 ];
 
